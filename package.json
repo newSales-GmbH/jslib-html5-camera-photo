@@ -1,6 +1,6 @@
 {
   "name": "jslib-html5-camera-photo",
-  "version": "3.1.4",
+  "version": "4.0.0",
   "description": "js lib HTML5 Camera Photo",
   "main": "build/index.js",
   "scripts": {
@@ -21,11 +21,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mabelanger/jslib-html5-camera-photo"
+    "url": "https://github.com/newSales-GmbH/jslib-html5-camera-photo"
   },
   "author": "Michel-Alexandre Belanger <michel.alexandre.belanger@gmail.com> (https://github.com/mabelanger)",
   "bugs": {
-    "url": "https://github.com/mabelanger/jslib-html5-camera-photo/issues"
+    "url": "https://github.com/newSales-GmbH/jslib-html5-camera-photo/issues"
   },
   "keywords": [
     "react",
@@ -35,7 +35,7 @@
     "photo",
     "component"
   ],
-  "homepage": "https://mabelanger.github.io/jslib-html5-camera-photo/",
+  "homepage": "https://github.com/newSales-GmbH/jslib-html5-camera-photo/",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {
