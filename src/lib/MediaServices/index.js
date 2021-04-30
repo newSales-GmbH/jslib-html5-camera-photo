@@ -1,4 +1,4 @@
-import {getImageSize, getDataUri, isMinimumConstraints} from './helper';
+import {getImageSize, getDataUri, getDataBlob, isMinimumConstraints} from './helper';
 
 import {
   SUPPORTED_FACING_MODES,
@@ -8,33 +8,46 @@ import {
 } from './constants';
 
 class MediaServices {
-  static getDataUri (videoElement, config) {
-    let { sizeFactor, imageType, imageCompression, isImageMirror } = config;
+  static createCanvas (videoElement, sizeFactor, isImageMirror) {
+    const {videoWidth, videoHeight} = videoElement;
+    const {imageWidth, imageHeight} = getImageSize(videoWidth, videoHeight, sizeFactor);
 
-    let {videoWidth, videoHeight} = videoElement;
-    let {imageWidth, imageHeight} = getImageSize(videoWidth, videoHeight, sizeFactor);
-
-    // Build the canvas size et draw the image to context from videoElement
-    let canvas = document.createElement('canvas');
+    // Build the canvas size and draw the image to context from videoElement
+    const canvas = document.createElement('canvas');
     canvas.width = imageWidth;
     canvas.height = imageHeight;
-    let context = canvas.getContext('2d');
+    const context = canvas.getContext('2d');
 
-    // Flip horizontally (as css transform: rotateY(180deg))
+    // Flip horizontally (like css transform: rotateY(180deg))
     if (isImageMirror) {
       context.setTransform(-1, 0, 0, 1, canvas.width, 0);
     }
 
     context.drawImage(videoElement, 0, 0, imageWidth, imageHeight);
 
+    return canvas;
+  }
+
+  static getDataUri (videoElement, config) {
+    const { sizeFactor, imageType, imageCompression, isImageMirror } = config;
+
+    const canvas = MediaServices.createCanvas(videoElement, sizeFactor, isImageMirror);
+
     // Get dataUri from canvas
-    let dataUri = getDataUri(canvas, imageType, imageCompression);
-    return dataUri;
+    return getDataUri(canvas, imageType, imageCompression);
+  }
+
+  static async getDataBlob (videoElement, config) {
+    const { sizeFactor, imageType, imageCompression, isImageMirror } = config;
+
+    const canvas = MediaServices.createCanvas(videoElement, sizeFactor, isImageMirror);
+
+    // perhaps this can be solved more elegantly
+    return getDataBlob(canvas, imageType, imageCompression);
   }
 
   static getWindowURL () {
-    let windowURL = window.URL || window.webkitURL || window.mozURL || window.msURL;
-    return windowURL;
+    return window.URL || window.webkitURL || window.mozURL || window.msURL;
   }
 
   /*
@@ -77,44 +90,49 @@ class MediaServices {
     return MediaServices.getNavigatorMediaDevices().getSupportedConstraints().facingMode;
   }
 
-  static getIdealConstraints (idealFacingMode, idealResolution) {
+  static getIdealConstraints (idealFacingMode, idealResolution, exactDeviceId) {
     // default idealConstraints
     let idealConstraints = {
       audio: false,
       video: {}
     };
 
-    if (isMinimumConstraints(idealFacingMode, idealResolution)) {
+    if (isMinimumConstraints(idealFacingMode, idealResolution, exactDeviceId)) {
       return MINIMUM_CONSTRAINTS;
     }
 
     const supports = navigator.mediaDevices.getSupportedConstraints();
     /* eslint-env browser */
-    // alert(JSON.stringify(supports));
+    /*
     if (!supports.width || !supports.height || !supports.facingMode) {
       console.error('Constraint width height or facingMode not supported!');
       return MINIMUM_CONSTRAINTS;
     }
+    */
 
     // If is valid facingMode
-    if (idealFacingMode && SUPPORTED_FACING_MODES.includes(idealFacingMode)) {
+    if (idealFacingMode && supports.facingMode && SUPPORTED_FACING_MODES.includes(idealFacingMode)) {
       // idealConstraints.video.facingMode = { ideal: idealFacingMode };
       idealConstraints.video.facingMode = idealFacingMode;
     }
 
-    if (idealResolution && idealResolution.width) {
+    if (idealResolution && supports.width && idealResolution.width) {
       idealConstraints.video.width = idealResolution.width;
     }
 
-    if (idealResolution && idealResolution.height) {
+    if (idealResolution && supports.height && idealResolution.height) {
       idealConstraints.video.height = idealResolution.height;
+    }
+
+    if (exactDeviceId && supports.deviceId) {
+      idealConstraints.video.deviceId = {exact: exactDeviceId};
     }
 
     return idealConstraints;
   }
 
-  static getMaxResolutionConstraints (idealFacingMode = {}, numberOfMaxResolutionTry) {
-    let constraints = MediaServices.getIdealConstraints(idealFacingMode);
+  static getMaxResolutionConstraints (idealFacingMode = {}, exactDeviceId, numberOfMaxResolutionTry) {
+    let constraints = MediaServices.getIdealConstraints(idealFacingMode, undefined, exactDeviceId);
     const facingMode = constraints.video.facingMode;
 
     const VIDEO_ADVANCED_CONSTRANTS = [
@@ -134,8 +152,7 @@ class MediaServices {
     }
 
     // each number of try, we remove the last value of the array (the bigger minim width)
-    let advanced = VIDEO_ADVANCED_CONSTRANTS.slice(0, -numberOfMaxResolutionTry);
-    constraints.video.advanced = advanced;
+    constraints.video.advanced = VIDEO_ADVANCED_CONSTRANTS.slice(0, -numberOfMaxResolutionTry);
 
     return constraints;
   }

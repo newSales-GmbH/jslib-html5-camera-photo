@@ -3,10 +3,11 @@ import {
   FORMAT_TYPES,
   IMAGE_TYPES
 } from './constants';
+import {DEFAULT_IMAGE_COMPRESSION, DEFAULT_IMAGE_TYPE} from '../constants';
 
 function _validateImgParam (imageType, imageCompression) {
   // validate the imageCompression
-  if (!(imageCompression >= 0 && imageCompression <= 1)) {
+  if (imageCompression < 0 || imageCompression > 1) {
     throw new Error(imageCompression + ' is invalid imageCompression, choose between: [0, 1]');
   }
 
@@ -17,18 +18,28 @@ function _validateImgParam (imageType, imageCompression) {
   return true;
 }
 
+/**
+ * @param {string} imageType
+ * @param {number|null} imageCompression
+ * @return {{imageType: string, imageCompression: number|null}}
+ */
 function _getValidImgParam (imageType, imageCompression) {
-  let imgParam = {};
+  const imgParam = {
+    imageType: DEFAULT_IMAGE_TYPE,
+    imageCompression: DEFAULT_IMAGE_COMPRESSION
+  };
+
   try {
     _validateImgParam(imageType, imageCompression);
     imgParam.imageType = imageType;
     imgParam.imageCompression = imageCompression;
   } catch (e) {
     console.error(e);
-    console.error('default value of ' + IMAGE_TYPES.PNG + ' is used');
+    console.error('default value of ' + DEFAULT_IMAGE_TYPE + ' is used');
+  }
 
-    imgParam.imageType = IMAGE_TYPES.PNG;
-    imgParam.imageCompression = null;
+  if (imgParam.imageType === IMAGE_TYPES.PNG) {
+    imgParam.imageCompression = null; // always disable on png
   }
 
   return imgParam;
@@ -51,14 +62,23 @@ export function getImageSize (videoWidth, videoHeight, sizeFactor) {
 export function getDataUri (canvas, imageType, imageCompression) {
   const imgParam = _getValidImgParam(imageType, imageCompression);
 
-  if (imgParam.imageType === IMAGE_TYPES.JPG) {
-    if (!imageCompression) {
-      return canvas.toDataURL(FORMAT_TYPES[IMAGE_TYPES.JPG]);
-    }
-    return canvas.toDataURL(FORMAT_TYPES[IMAGE_TYPES.JPG], imageCompression);
+  if ((imgParam.imageType === IMAGE_TYPES.JPG) && imgParam.imageCompression) {
+    return canvas.toDataURL(FORMAT_TYPES[imgParam.imageType], imgParam.imageCompression);
   }
 
-  return canvas.toDataURL(FORMAT_TYPES[imageType]);
+  return canvas.toDataURL(FORMAT_TYPES[imgParam.imageType]);
+}
+
+export async function getDataBlob (canvas, imageType, imageCompression) {
+  const imgParam = _getValidImgParam(imageType, imageCompression);
+
+  return new Promise(function (resolve) {
+    if (imgParam.imageCompression) {
+      canvas.toBlob(resolve, FORMAT_TYPES[imgParam.imageType], imgParam.imageCompression);
+    } else {
+      canvas.toBlob(resolve, FORMAT_TYPES[imgParam.imageType]);
+    }
+  });
 }
 
 function _isEmptyObject (obj) {
@@ -73,6 +93,6 @@ function _isEmptyObject (obj) {
   return true;
 }
 
-export function isMinimumConstraints (idealFacingMode, idealResolution) {
-  return !(idealFacingMode || (idealResolution && !_isEmptyObject(idealResolution)));
+export function isMinimumConstraints (idealFacingMode, idealResolution, exactDeviceId) {
+  return !(idealFacingMode || exactDeviceId || (idealResolution && !_isEmptyObject(idealResolution)));
 }

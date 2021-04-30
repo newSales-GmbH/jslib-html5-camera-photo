@@ -1,11 +1,15 @@
+/* eslint-env browser */
 import MediaServices from './MediaServices';
 
-import {
-  DEFAULT_SIZE_FACTOR,
-  DEFAULT_IMAGE_COMPRESSION,
-  DEFAULT_IMAGE_MIRROR } from './constants';
+import {DEFAULT_IMAGE_COMPRESSION, DEFAULT_IMAGE_MIRROR, DEFAULT_IMAGE_TYPE, DEFAULT_SIZE_FACTOR} from './constants';
 
-const DEFAULT_IMAGE_TYPE = MediaServices.IMAGE_TYPES.PNG;
+/**
+ * @typedef {Object} UserConfig
+ * @property {number} sizeFactor
+ * @property {string} imageType png or jpg
+ * @property {number|null} imageCompression
+ * @property {boolean} isImageMirror
+ */
 
 class CameraPhoto {
   constructor (videoElement) {
@@ -20,10 +24,10 @@ class CameraPhoto {
     this.mediaDevices = MediaServices.getNavigatorMediaDevices();
   }
 
-  _getStreamDevice (idealFacingMode, idealResolution) {
+  _getStreamDevice (idealFacingMode, idealResolution, exactDeviceId) {
     return new Promise((resolve, reject) => {
       let constraints =
-          MediaServices.getIdealConstraints(idealFacingMode, idealResolution);
+          MediaServices.getIdealConstraints(idealFacingMode, idealResolution, exactDeviceId);
 
       this.mediaDevices.getUserMedia(constraints)
         .then((stream) => {
@@ -45,14 +49,14 @@ class CameraPhoto {
     });
   }
 
-  _getStreamDeviceMaxResolution (idealFacingMode) {
-    let constraints =
-        MediaServices.getMaxResolutionConstraints(idealFacingMode, this.numberOfMaxResolutionTry);
+  _getStreamDeviceMaxResolution (idealFacingMode, exactDeviceId) {
+    const constraints =
+        MediaServices.getMaxResolutionConstraints(idealFacingMode, exactDeviceId, this.numberOfMaxResolutionTry);
 
     // all the trying is done...
     if (constraints == null) {
       let idealResolution = {};
-      return this._getStreamDevice(idealFacingMode, idealResolution);
+      return this._getStreamDevice(idealFacingMode, idealResolution, exactDeviceId);
     }
 
     return new Promise((resolve, reject) => {
@@ -74,7 +78,7 @@ class CameraPhoto {
           // retry...
           setTimeout(() => {
             this.numberOfMaxResolutionTry += 1;
-            this._getStreamDeviceMaxResolution(idealFacingMode)
+            this._getStreamDeviceMaxResolution(idealFacingMode, exactDeviceId)
               .catch(() => {
                 reject(error);
               });
@@ -88,8 +92,7 @@ class CameraPhoto {
       this.videoElement.srcObject = stream;
     } else {
       // using URL.createObjectURL() as fallback for old browsers
-      let videoSrc = this.windowURL.createObjectURL(stream);
-      this.videoElement.src = videoSrc;
+      this.videoElement.src = this.windowURL.createObjectURL(stream);
     }
   }
 
@@ -138,38 +141,95 @@ class CameraPhoto {
     return this.inputVideoDeviceInfos;
   }
 
-  startCamera (idealFacingMode, idealResolution) {
+  startCamera (idealFacingMode, idealResolution, exactDeviceId) {
     // stop the stream before playing it.
     return this.stopCamera()
       .then(() => {})
       .catch(() => {})
       // Always called (when the promise is done)
       .then(() => {
-        return this._getStreamDevice(idealFacingMode, idealResolution);
+        return this._getStreamDevice(idealFacingMode, idealResolution, exactDeviceId);
       });
   }
 
-  startCameraMaxResolution (idealFacingMode = {}) {
+  startCameraMaxResolution (idealFacingMode = {}, exactDeviceId) {
     // stop the stream before playing it.
     return this.stopCamera()
       .then(() => {})
       .catch(() => {})
       // Always called (when the promise is done)
       .then(() => {
-        return this._getStreamDeviceMaxResolution(idealFacingMode);
+        return this._getStreamDeviceMaxResolution(idealFacingMode, exactDeviceId);
       });
   }
 
-  getDataUri (userConfig) {
-    let config = {
+  /**
+   * @param {UserConfig} userConfig
+   * @return {UserConfig}
+   */
+  _getDataDefaultConfig (userConfig) {
+    return {
       sizeFactor: userConfig.sizeFactor === undefined ? DEFAULT_SIZE_FACTOR : userConfig.sizeFactor,
       imageType: userConfig.imageType === undefined ? DEFAULT_IMAGE_TYPE : userConfig.imageType,
       imageCompression: userConfig.imageCompression === undefined ? DEFAULT_IMAGE_COMPRESSION : userConfig.imageCompression,
       isImageMirror: userConfig.isImageMirror === undefined ? DEFAULT_IMAGE_MIRROR : userConfig.isImageMirror
     };
+  }
 
-    let dataUri = MediaServices.getDataUri(this.videoElement, config);
-    return dataUri;
+  /**
+   * @param {UserConfig} userConfig
+   * @return {string}
+   */
+  getDataUri (userConfig) {
+    return MediaServices.getDataUri(
+      this.videoElement,
+      this._getDataDefaultConfig(userConfig)
+    );
+  }
+
+  /**
+   * @param {UserConfig} userConfig
+   * @return {Promise<*>}
+   */
+  async getDataBlob (userConfig) {
+    return MediaServices.getDataBlob(
+      this.videoElement,
+      this._getDataDefaultConfig(userConfig)
+    );
+  }
+
+  /**
+   * @param {UserConfig} userConfig
+   * @param {string} filename
+   * @return {File}
+   */
+  async getDataFile (userConfig, filename) {
+    const dataBlob = await this.getDataBlob(userConfig);
+
+    return new File([dataBlob], filename, {type: dataBlob.type});
+  }
+
+  /**
+   * This **should** return something like _blob:http://host:port/10a63f26-4552-405c-a060-dee97c8a9f68_,
+   * which can be used in _<img src={...} />_ or as background-image.
+   * Beware: you should unload this through _URL.revokeObjectURL_ or let it be unloaded by the browser
+   * when document is unloaded
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL
+   * @param {Blob} dataBlob
+   * @return {string}
+   */
+  blobToUrl (dataBlob) {
+    return URL.createObjectURL(dataBlob);
+  }
+
+  /**
+   * Alias for blobToUrl
+   * @param {File} file
+   * @return {string}
+   */
+  fileToUrl (file) {
+    return this.blobToUrl(file);
   }
 
   stopCamera () {
@@ -190,5 +250,11 @@ class CameraPhoto {
 
 export const FACING_MODES = MediaServices.FACING_MODES;
 export const IMAGE_TYPES = MediaServices.IMAGE_TYPES;
+export {
+  DEFAULT_SIZE_FACTOR,
+  DEFAULT_IMAGE_COMPRESSION,
+  DEFAULT_IMAGE_MIRROR,
+  DEFAULT_IMAGE_TYPE
+};
 
 export default CameraPhoto;

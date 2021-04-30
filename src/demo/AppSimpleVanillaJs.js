@@ -31,8 +31,7 @@ let cameraPhoto = new CameraPhoto(videoElement);
 function startCameraDefaultAll () {
   cameraPhoto.startCamera()
     .then(() => {
-      let log = `Camera started with default All`;
-      console.log(log);
+      console.log(`Camera started with default All`);
     })
     .catch((error) => {
       console.error('Camera not started!', error);
@@ -46,10 +45,8 @@ function startCameraDefaultResolution () {
   let facingMode = facingModeSelectElement.value;
   cameraPhoto.startCamera(FACING_MODES[facingMode])
     .then(() => {
-      let log =
-          `Camera started with default resolution and ` +
-          `prefered facingMode : ${facingMode}`;
-      console.log(log);
+      console.log(`Camera started with default resolution and ` +
+        `prefered facingMode : ${facingMode}`);
     })
     .catch((error) => {
       console.error('Camera not started!', error);
@@ -57,7 +54,7 @@ function startCameraDefaultResolution () {
 }
 
 // function called by the buttons.
-function takePhoto () {
+async function takePhoto () {
   let sizeFactor = 1;
   let imageType = IMAGE_TYPES.JPG;
   let imageCompression = 1;
@@ -68,8 +65,10 @@ function takePhoto () {
     imageCompression
   };
 
-  let dataUri = cameraPhoto.getDataUri(config);
-  imgElement.src = dataUri;
+  // debugger; // eslint-disable-line no-debugger
+  // console.log(await cameraPhoto.getDataBlob(config));
+
+  imgElement.src = cameraPhoto.getDataUri(config);
 }
 
 function showCameraSettings () {
@@ -78,12 +77,13 @@ function showCameraSettings () {
   // by default is no camera...
   let innerHTML = 'No camera';
   if (settings) {
-    let {aspectRatio, frameRate, height, width} = settings;
+    let {aspectRatio, deviceId, frameRate, height, width} = settings;
     innerHTML = `
         aspectRatio:${aspectRatio}
         frameRate: ${frameRate}
         height: ${height}
-        width: ${width}
+        width: ${width},
+        deviceId: ${deviceId}
     `;
   }
   cameraSettingElement.innerHTML = innerHTML;
@@ -102,6 +102,8 @@ function showInputVideoDeviceInfos () {
             kind: ${kind}
             label: ${label}
             deviceId: ${deviceId}
+            <button class="selectDeviceButton" data-device-id="${deviceId}" data-res="default">switch (default)</button>
+            <button class="selectDeviceButton" data-device-id="${deviceId}" data-res="max">switch (max)</button>
             <br/>
         `;
       innerHTML += inputVideoDeviceInfoHTML;
@@ -148,3 +150,24 @@ document.addEventListener('DOMContentLoaded', function () {
   stopCameraButtonElement.onclick = stopCamera;
   showInputVideoDeviceInfosButtonElement.onclick = showInputVideoDeviceInfos;
 });
+
+document.body.addEventListener('click', function (evt) {
+  if (evt.target.classList.contains('selectDeviceButton')) {
+    const {res, deviceId} = evt.target.dataset;
+
+    (function () {
+      if (res === 'max') {
+        return cameraPhoto.startCameraMaxResolution(undefined, deviceId);
+      }
+
+      return cameraPhoto.startCamera(undefined, undefined, deviceId);
+    })()
+      .then(() => {
+        console.log(`Camera started with deviceId ${deviceId} res ${res}`);
+      })
+      .catch((error) => {
+        console.error('Camera not started!', error);
+      })
+    ;
+  }
+}, false);
