@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "before:init": ["npm run build"]
+  },
+  "github": {
+    "release": true,
+    "assets": ["*.tgz"]
+  }
+}

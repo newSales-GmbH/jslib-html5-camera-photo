@@ -23,6 +23,7 @@ const checkRequiredFiles = require('react-dev-utils/checkRequiredFiles');
 const formatWebpackMessages = require('react-dev-utils/formatWebpackMessages');
 const FileSizeReporter = require('react-dev-utils/FileSizeReporter');
 const printBuildError = require('react-dev-utils/printBuildError');
+const glob = require('glob');
 
 const measureFileSizesBeforeBuild =
   FileSizeReporter.measureFileSizesBeforeBuild;
@@ -85,7 +86,16 @@ measureFileSizesBeforeBuild(paths.appBuild)
   );
 
 // Create the production build and print the deployment instructions.
-function build(previousFileSizes) {
+function build (previousFileSizes) {
+  const zipFilelist = glob.sync('*.tgz', {cwd: paths.appDirectory});
+  if (zipFilelist.length > 0) {
+    console.log('Deleting old *.tgz files');
+    zipFilelist.forEach(file => {
+      console.log(` * ${file}`);
+      fs.unlink(file);
+    });
+  }
+
   console.log('Creating an optimized production build...');
 
   let compiler = webpack(config);
